@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#111318">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>FrameLab — YouTube Frame Player</title>
+<style>
+:root{color-scheme:dark;--bg:#111318;--panel:#1b1e26;--panel2:#242936;--text:#f4f5f7;--muted:#a6adbb;--accent:#55d6be;--line:#343b49}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+.app{max-width:900px;margin:auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{font-size:21px;margin:0} .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.badge{font-size:11px;color:var(--accent);border:1px solid #286c61;padding:5px 8px;border-radius:20px}
+.urlrow{display:flex;gap:8px;margin-bottom:14px}
+input,select,button{font:inherit}
+.urlrow input{min-width:0;flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--text)}
+button,select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+button{cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.97)}button.primary{background:var(--accent);color:#09211d;border:0;font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+.playerbox{background:#000;border-radius:14px;overflow:hidden;position:relative;aspect-ratio:16/9;display:grid;place-items:center}
+#player{width:100%;height:100%}
+.playerbox.zoomed #player{transform:scale(1.35)}
+.placeholder{position:absolute;color:#8d95a4;text-align:center;padding:20px;pointer-events:none}
+.status{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;margin:10px 2px 14px}
+.section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;margin-top:12px}
+.sectiontitle{font-size:13px;font-weight:700;color:#dce1e9;margin-bottom:10px}
+.timeline{width:100%;accent-color:var(--accent);margin:8px 0}
+.timeinfo{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.controls{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.controls button{min-height:54px;font-size:14px}
+.controls .step{font-size:17px;font-weight:700}
+.smallrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.smallrow label{font-size:12px;color:var(--muted)}
+.smallrow select{padding:8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--panel2);padding:10px;border-radius:10px;min-width:0}
+.stat b{display:block;font-size:16px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.stat span{font-size:11px;color:var(--muted)}
+.note{font-size:12px;line-height:1.5;color:var(--muted);margin:10px 2px 0}
+.looprow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center}
+.looprow input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px;color:var(--text)}
+footer{text-align:center;color:#707989;font-size:11px;padding:18px 0 8px}
+@media(max-width:480px){.app{padding:12px}.controls{grid-template-columns:repeat(2,1fr)}.controls button{min-height:58px}.badge{display:none}.looprow{grid-template-columns:1fr 1fr}.looprow button{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div><h1>FrameLab</h1><div class="sub">Pemutar YouTube & analisis gerakan • jalankan dari HTTPS</div></div><span class="badge">HTML5 • BETA</span></header>
+
+<div class="urlrow">
+  <input id="url" type="url" placeholder="Tempel URL video YouTube…" autocomplete="off">
+  <button class="primary" id="load">Buka</button>
+</div>
+
+<div class="playerbox" id="playerbox">
+  <div id="player"></div>
+  <div class="placeholder" id="placeholder">Masukkan URL YouTube, lalu tekan <b>Buka</b>.</div>
+</div>
+
+<div class="status"><span id="playstate">Belum ada video</span><span id="fpslabel">Mode langkah: 30 FPS</span></div>
+
+<div class="section">
+  <div class="sectiontitle">Timeline</div>
+  <input class="timeline" id="timeline" type="range" min="0" max="100" step="0.001" value="0" disabled>
+  <div class="timeinfo"><span id="current">00:00.000</span><span id="duration">00:00.000</span></div>
+</div>
+
+<div class="section">
+  <div class="sectiontitle">Kontrol frame</div>
+  <div class="controls">
+    <button id="back10">⏪ −10 frame</button>
+    <button class="step" id="back1">◀ −1 frame</button>
+    <button class="step" id="forward1">+1 frame ▶</button>
+    <button id="forward10">+10 frame ⏩</button>
+    <button id="play">▶ Putar</button>
+    <button id="pause">Ⅱ Jeda</button>
+    <button id="back5s">−5 detik</button>
+    <button id="forward5s">+5 detik</button>
+  </div>
+  <p class="note">Tombol frame memakai interval waktu sesuai FPS pilihan. Presisi aktual bergantung pada pemutar YouTube; tidak semua frame sumber bisa diakses satu per satu.</p>
+</div>
+
+<div class="section">
+  <div class="sectiontitle">Informasi frame</div>
+  <div class="stats">
+    <div class="stat"><b id="frameNo">—</b><span>Nomor frame (perkiraan)</span></div>
+    <div class="stat"><b id="timecode">00:00:00:00</b><span>Timecode</span></div>
+    <div class="stat"><b id="rate">1×</b><span>Kecepatan putar</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sectiontitle">Pengaturan analisis</div>
+  <div class="smallrow">
+    <label for="fps">FPS acuan</label>
+    <select id="fps"><option>24</option><option selected>30</option><option>60</option><option>25</option><option>50</option><option>Custom 12</option></select>
+    <label for="speed">Kecepatan</label>
+    <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+    <button id="zoom">Zoom: Mati</button>
+    <button id="fullscreen">⛶ Layar penuh</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="sectiontitle">Loop A–B</div>
+  <div class="looprow">
+    <input id="loopA" type="text" placeholder="Titik A (detik)">
+    <input id="loopB" type="text" placeholder="Titik B (detik)">
+    <button id="setA">A = posisi sekarang</button>
+    <button id="setB">B = posisi sekarang</button>
+    <button class="primary" id="loopToggle">Aktifkan loop</button>
+  </div>
+  <p class="note" id="loopstatus">Atur titik A dan B untuk mengulang bagian video.</p>
+</div>
+
+<p class="note">Catatan: ini adalah pemutar berbasis YouTube Embed API. Beberapa video membatasi pemutaran tertanam. Screenshot langsung dari area video tidak disediakan karena pembatasan keamanan browser pada konten lintas situs.</p>
+<footer>FrameLab • dibuat sebagai satu file HTML</footer>
+</div>
+
+<script>
+let player=null,ready=false,duration=0,timer=null,loopActive=false,zoomed=false;
+const $=id=>document.getElementById(id);
+function parseId(raw){
+  try{
+    const u=new URL(raw.trim());
+    if(u.hostname.includes('youtu.be')) return u.pathname.split('/').filter(Boolean)[0]||null;
+    if(u.hostname.includes('youtube.com')||u.hostname.includes('youtube-nocookie.com')){
+      if(u.pathname==='/watch') return u.searchParams.get('v');
+      const m=u.pathname.match(/^\/(embed|shorts|live)\/([^/?]+)/);return m?m[2]:null;
+    }
+  }catch(e){}
+  return null;
+}
+function fps(){const v=$('fps').value;return v.startsWith('Custom')?12:Number(v)}
+function fmt(t){if(!Number.isFinite(t)||t<0)t=0;let m=Math.floor(t/60),s=Math.floor(t%60),ms=Math.floor((t-Math.floor(t))*1000);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
+function timecode(t){let f=Math.floor(t*fps()+1e-5),ff=f%fps(),total=Math.floor(f/fps()),ss=total%60,mm=Math.floor(total/60);return String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')+':'+String(ff).padStart(2,'0')}
+function seek(t){if(!ready)return;const target=Math.max(0,Math.min(duration||1,t));player.pauseVideo();player.seekTo(target,true);updateUI(target)}
+function step(n){if(!ready)return;seek(player.getCurrentTime()+n/fps())}
+function updateUI(t){
+  if(!ready)return;
+  if(t===undefined)t=player.getCurrentTime();
+  $('current').textContent=fmt(t);$('duration').textContent=fmt(duration);
+  $('timeline').max=duration||100;$('timeline').value=t;
+  $('frameNo').textContent=String(Math.floor(t*fps()+1e-5)+1);
+  $('timecode').textContent=timecode(t);$('fpslabel').textContent='Mode langkah: '+fps()+' FPS';
+  $('rate').textContent=(player.getPlaybackRate()||1)+'×';
+}
+function startTicker(){if(timer)clearInterval(timer);timer=setInterval(()=>{
+ if(!ready)return;
+ const t=player.getCurrentTime();updateUI(t);
+ if(loopActive){const a=Number($('loopA').value),b=Number($('loopB').value);if(Number.isFinite(a)&&Number.isFinite(b)&&b>a&&t>=b)player.seekTo(a,true)}
+ const s=player.getPlayerState();$('playstate').textContent=s===1?'Sedang diputar':s===2?'Dijeda':s===3?'Memuat…':'Siap';
+},100)}
+function loadVideo(){
+ const id=parseId($('url').value);if(!id){alert('URL YouTube tidak dikenali. Tempel tautan video yang valid.');return}
+ $('placeholder').style.display='none';
+ if(!window.YT||!YT.Player){$('playstate').textContent='Memuat pemutar YouTube…';window.pendingVideo=id;return}
+ if(player&&player.loadVideoById){player.loadVideoById(id);return}
+ player=new YT.Player('player',{videoId:id,playerVars:{playsinline:1,rel:0,enablejsapi:1},events:{
+  onReady:e=>{ready=true;duration=e.target.getDuration();$('timeline').disabled=false;updateUI(0);$('playstate').textContent='Video siap';startTicker()},
+  onStateChange:e=>{if(e.data===YT.PlayerState.PLAYING)$('playstate').textContent='Sedang diputar';if(e.data===YT.PlayerState.PAUSED)$('playstate').textContent='Dijeda';if(e.data===YT.PlayerState.ENDED)$('playstate').textContent='Selesai'},
+  onError:e=>{$('playstate').textContent='Video tidak dapat diputar (kode '+e.data+')'}
+ }});
+}
+$('load').onclick=loadVideo;$('url').addEventListener('keydown',e=>{if(e.key==='Enter')loadVideo()});
+$('back1').onclick=()=>step(-1);$('forward1').onclick=()=>step(1);$('back10').onclick=()=>step(-10);$('forward10').onclick=()=>step(10);
+$('play').onclick=()=>{if(ready)player.playVideo()};$('pause').onclick=()=>{if(ready)player.pauseVideo()};
+$('back5s').onclick=()=>{if(ready)seek(player.getCurrentTime()-5)};$('forward5s').onclick=()=>{if(ready)seek(player.getCurrentTime()+5)};
+$('timeline').addEventListener('input',e=>seek(Number(e.target.value)));
+$('fps').onchange=()=>{updateUI();$('fpslabel').textContent='Mode langkah: '+fps()+' FPS'};
+$('speed').onchange=()=>{if(ready){player.setPlaybackRate(Number($('speed').value));updateUI()}};
+$('zoom').onclick=()=>{zoomed=!zoomed;$('playerbox').classList.toggle('zoomed',zoomed);$('zoom').textContent='Zoom: '+(zoomed?'Aktif':'Mati')};
+$('fullscreen').onclick=()=>{const el=$('playerbox');if(el.requestFullscreen)el.requestFullscreen();else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen()};
+$('setA').onclick=()=>{if(ready){$('loopA').value=player.getCurrentTime().toFixed(3);$('loopstatus').textContent='Titik A disimpan.'}};
+$('setB').onclick=()=>{if(ready){$('loopB').value=player.getCurrentTime().toFixed(3);$('loopstatus').textContent='Titik B disimpan.'}};
+$('loopToggle').onclick=()=>{const a=Number($('loopA').value),b=Number($('loopB').value);if(!loopActive&&(!Number.isFinite(a)||!Number.isFinite(b)||b<=a)){alert('Isi titik A dan B yang valid. Titik B harus lebih besar dari A.');return}loopActive=!loopActive;$('loopToggle').textContent=loopActive?'Matikan loop':'Aktifkan loop';$('loopstatus').textContent=loopActive?'Loop aktif: '+fmt(a)+' – '+fmt(b):'Loop tidak aktif.';if(loopActive)seek(a)};
+document.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;if(e.key==='ArrowLeft'){e.preventDefault();step(-1)}if(e.key==='ArrowRight'){e.preventDefault();step(1)}if(e.code==='Space'){e.preventDefault();if(ready){if(player.getPlayerState()===1)player.pauseVideo();else player.playVideo()}}});
+window.onYouTubeIframeAPIReady=()=>{if(window.pendingVideo){$('url').value='https://www.youtube.com/watch?v='+window.pendingVideo;loadVideo()}};
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
